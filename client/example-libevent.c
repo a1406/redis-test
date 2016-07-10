@@ -15,7 +15,7 @@ void getCallback(redisAsyncContext *c, void *r, void *privdata) {
     printf("argv[%s]: %s\n", (char*)privdata, reply->str);
 
     /* Disconnect after receiving the reply to GET */
-    redisAsyncDisconnect(c);
+//    redisAsyncDisconnect(c);
 }
 
 void connectCallback(const redisAsyncContext *c, int status) {
@@ -34,13 +34,14 @@ void disconnectCallback(const redisAsyncContext *c, int status) {
     printf("Disconnected... %p\n", c);
 }
 
+#define TEST_NUM 1000
 int main (int argc, char **argv) {
     signal(SIGPIPE, SIG_IGN);
     struct event_base *base = event_base_new();
-	redisAsyncContext *c[10];
+	static redisAsyncContext *c[TEST_NUM];
 	int i;
 
-	for (i = 0; i < 10; i++) {
+	for (i = 0; i < TEST_NUM; i++) {
 		c[i] = redisAsyncConnect("127.0.0.1", 6379);
 		if (c[i]->err) {
 				/* Let *c leak for now... */
