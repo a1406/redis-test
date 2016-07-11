@@ -34,15 +34,24 @@ void disconnectCallback(const redisAsyncContext *c, int status) {
     printf("Disconnected... %p\n", c);
 }
 
-#define TEST_NUM 1000
+#define TEST_NUM 10000
 int main (int argc, char **argv) {
     signal(SIGPIPE, SIG_IGN);
     struct event_base *base = event_base_new();
 	static redisAsyncContext *c[TEST_NUM];
 	int i;
+	int port = 6379;
+	const char *ip = "127.0.0.1";
+	int test_num = TEST_NUM;
+	if (argc > 1)
+		ip = argv[1];
+	if (argc > 2)
+		port = atoi(argv[2]);
+	if (argc > 3)
+		test_num = atoi(argv[3]);
 
-	for (i = 0; i < TEST_NUM; i++) {
-		c[i] = redisAsyncConnect("127.0.0.1", 6379);
+	for (i = 0; i < test_num; i++) {
+		c[i] = redisAsyncConnect(ip, port);
 		if (c[i]->err) {
 				/* Let *c leak for now... */
 			printf("Error: %s\n", c[i]->errstr);
