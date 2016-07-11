@@ -12,11 +12,29 @@
 
 #define TEST_NUM 10000
 
-static struct timeval sg_timeout = {5, 0};
+//static struct timeval sg_timeout = {5, 0};
 static int test_num = TEST_NUM;
 static int connected_num;
+static struct epoll_event all_events[TEST_NUM];
 
 static int connect_tcp(const char *addr, int port);
+static int get_next_timeout();
+
+int on_recv(int fd)
+{
+	static char buf[1024];
+	int ret = recv(fd, buf, 1024, 0);
+	if (ret <= 0) {
+		printf("connect[%d] down\n", fd);
+		sleep(99999);
+	}
+	return (0);
+}
+
+int on_timer()
+{
+	return (0);
+}
 
 int main(int argc, char *argv[])
 {
@@ -32,7 +50,23 @@ int main(int argc, char *argv[])
 	if (argc > 3)
 		test_num = atoi(argv[3]);
 
-	
+	for (i = 0; i < test_num; i++) {
+		int fd = connect_tcp(ip, port);
+		if (fd < 0) {
+			printf("conntect failed[%d]\n", i);
+			return (0);
+		}
+		all_events[i].events = EPOLLIN;
+		all_events[i].data.fd = fd;
+		epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &all_events[i]);
+		++connected_num;
+	}
+
+	int ret = epoll_wait(epoll_fd, all_events, test_num, get_next_timeout());
+	if (ret == 0)
+		on_timer();
+	else
+		on_recv(ret);
     return 0;
 }
 
@@ -79,4 +113,9 @@ static int connect_tcp(const char *addr, int port)
 done:
     freeaddrinfo(servinfo);
     return ret;  // Need to return REDIS_OK if alright
+}
+
+static int get_next_timeout()
+{
+	return (0);
 }
