@@ -9,6 +9,7 @@
 #include <sys/socket.h>
 #include <netdb.h>
 #include <unistd.h>
+#include <time.h>
 
 #define TEST_NUM 10000
 
@@ -19,20 +20,35 @@ static struct epoll_event all_events[TEST_NUM];
 
 static int connect_tcp(const char *addr, int port);
 static int get_next_timeout();
+static void refresh_next_timer(int r);
 
 int on_recv(int fd)
 {
 	static char buf[1024];
 	int ret = recv(fd, buf, 1024, 0);
 	if (ret <= 0) {
-		printf("connect[%d] down\n", fd);
+		printf("%s %d: connect[%d] down[%d][%d]\n", __FUNCTION__, __LINE__, fd, ret, errno);
 		sleep(99999);
 	}
+	buf[ret] = '\0';
+//	printf("%s %d: ret[%d] fd[%d] %s\n", __FUNCTION__, __LINE__, ret, fd, buf);
 	return (0);
 }
 
 int on_timer()
 {
+	printf("%s\n", __FUNCTION__);
+	int i;
+	char buf[64];
+	for (i = 0; i < test_num; i++) {
+		int fd = all_events[i].data.fd;
+		int len = sprintf(buf, "[on_timer send fd = %d]", fd);
+		int ret = send(fd, buf, len, 0);
+		if (ret != len) {
+			printf("%s %d: connect[%d] down[%d][%d]\n", __FUNCTION__, __LINE__, fd, ret, errno);
+			sleep(99999);
+		}
+	}
 	return (0);
 }
 
@@ -52,7 +68,7 @@ int main(int argc, char *argv[])
 
 	for (i = 0; i < test_num; i++) {
 		int fd = connect_tcp(ip, port);
-		if (fd < 0) {
+		if (fd <= 0) {
 			printf("conntect failed[%d]\n", i);
 			return (0);
 		}
@@ -62,11 +78,20 @@ int main(int argc, char *argv[])
 		++connected_num;
 	}
 
-	int ret = epoll_wait(epoll_fd, all_events, test_num, get_next_timeout());
-	if (ret == 0)
-		on_timer();
-	else
-		on_recv(ret);
+	for (;;) {
+		int ret = epoll_wait(epoll_fd, all_events, test_num, get_next_timeout());
+		if (ret == 0) {
+			on_timer();
+			refresh_next_timer(0);			
+		}
+		else {
+			for (i = 0; i < ret; i++) {
+				on_recv(all_events[i].data.fd);				
+			}
+
+			refresh_next_timer(1);
+		}
+	}
     return 0;
 }
 
@@ -115,7 +140,26 @@ done:
     return ret;  // Need to return REDIS_OK if alright
 }
 
+#define SLEEP_SEC (1)
+static time_t t1;
+static int next_time;	
 static int get_next_timeout()
 {
-	return (0);
+	return (next_time);
+}
+
+static void refresh_next_timer(int r)
+{
+	time_t now;
+	time(&now);
+	if (now >= t1) {
+		if (r)
+			on_timer();
+		t1 = now + SLEEP_SEC;
+		next_time = SLEEP_SEC * 1000;
+		return;
+	}
+
+	next_time = (t1 - now) * 1000;
+	return;
 }
