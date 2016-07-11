@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <signal.h>
+#include <errno.h>
 
 #include <hiredis/hiredis.h>
 #include <hiredis/async.h>
@@ -34,10 +35,41 @@ void disconnectCallback(const redisAsyncContext *c, int status) {
     printf("Disconnected... %p\n", c);
 }
 
+static struct timeval sg_timeout = {60, 0};
+static struct event sg_event_timer;
+static struct event_base *base;
+int add_timer(struct timeval t, struct event *event_timer, void *arg);
+static void cb_timer(evutil_socket_t fd, short events, void *arg)
+{
+	(void)(fd);
+	(void)(events);	
+	add_timer(sg_timeout, &sg_event_timer, arg);
+//	printf("%s: fd = %d, events = %d, arg = %p", __FUNCTION__, fd, events, arg);
+//	if (arg)
+//		event_free((struct event *)arg);
+}
+
+int add_timer(struct timeval t, struct event *event_timer, void *arg)
+{
+	if (!event_timer) {
+		event_timer = evtimer_new(base, cb_timer, arg);
+		if (!event_timer) {
+			printf("%s %d: evtimer_new failed[%d]", __FUNCTION__, __LINE__, errno);					
+			return (-1);
+		}
+		event_timer->ev_arg = event_timer;
+	} else if (!(event_timer->ev_flags & EVLIST_TIMEOUT)) {
+		evtimer_assign(event_timer, base, event_timer->ev_callback, arg);
+	}
+
+	return evtimer_add(event_timer, &t);
+}
+
 #define TEST_NUM 10000
-int main (int argc, char **argv) {
+int main (int argc, char **argv)
+{
     signal(SIGPIPE, SIG_IGN);
-    struct event_base *base = event_base_new();
+    base = event_base_new();
 	static redisAsyncContext *c[TEST_NUM];
 	int i;
 	int port = 6379;
@@ -64,6 +96,9 @@ int main (int argc, char **argv) {
 		redisAsyncCommand(c[i], NULL, NULL, "SET key %b", argv[argc-1], strlen(argv[argc-1]));
 		redisAsyncCommand(c[i], getCallback, (char*)"end-1", "GET key");
     }
+
+	sg_event_timer.ev_callback = cb_timer;
+	add_timer(sg_timeout, &sg_event_timer, &sg_event_timer);	
 		
     event_base_dispatch(base);
     return 0;
