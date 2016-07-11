@@ -76,6 +76,34 @@ static void free_redis_test_client(redis_test_client *c)
 static void redis_test_read_handler(aeEventLoop *el, int fd, void *privdata, int mask)
 {
 	redis_test_client *c = (redis_test_client*) privdata;
+    UNUSED(el);
+    UNUSED(mask);		
+	static char buf[1024];
+	int ret = recv(fd, buf, 1024, 0);
+	if (ret == 0) {
+		serverLog(LL_WARNING, "%s %d %d: recv ret [%d] err [%d]", __FUNCTION__, __LINE__, fd, ret, errno);
+		free_redis_test_client(c);		
+		return;
+	}
+	else if (ret < 0) {
+		if (errno != EAGAIN && errno != EINTR) {
+			serverLog(LL_WARNING, "%s %d %d: recv ret [%d] err [%d]", __FUNCTION__, __LINE__, fd, ret, errno);
+			free_redis_test_client(c);					
+			return;
+		}
+		else {
+			return;
+		}
+	}
+	if (ret != send(fd, buf, ret, 0)) {
+		serverLog(LL_WARNING, "%s %d %d: recv ret [%d] err [%d]", __FUNCTION__, __LINE__, fd, ret, errno);
+		free_redis_test_client(c);		
+	}
+	return;
+	
+#if 0
+	
+	redis_test_client *c = (redis_test_client*) privdata;
     int nread, readlen;
     size_t qblen;
     UNUSED(el);
@@ -107,6 +135,7 @@ static void redis_test_read_handler(aeEventLoop *el, int fd, void *privdata, int
 		sdslen(c->querybuf), nread, c->querybuf);	
 	
 //    processInputBuffer(c);
+#endif	
 }
 
 static redis_test_client *redis_test_create_client(int fd)
