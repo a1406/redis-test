@@ -11,7 +11,7 @@
 #include <unistd.h>
 #include <time.h>
 
-#define TEST_NUM 10000
+#define TEST_NUM 100000
 
 //static struct timeval sg_timeout = {5, 0};
 static int test_num = TEST_NUM;
@@ -70,7 +70,7 @@ int main(int argc, char *argv[])
 		int fd = connect_tcp(ip, port);
 		if (fd <= 0) {
 			printf("conntect failed[%d]\n", i);
-			return (0);
+			sleep(99999);
 		}
 		all_events[i].events = EPOLLIN;
 		all_events[i].data.fd = fd;
@@ -124,6 +124,7 @@ static int connect_tcp(const char *addr, int port)
             continue;
 
         if (connect(s,p->ai_addr,p->ai_addrlen) == -1) {
+			printf("connect failed, err = %d %s\n", errno, strerror(errno));
 			close(s);
 			continue;
         }
